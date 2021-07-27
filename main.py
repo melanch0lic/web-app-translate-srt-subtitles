@@ -1,47 +1,48 @@
 from typing import Optional
-
+from os import listdir
+import os.path
 from fastapi import FastAPI
-from slugify import slugify
 
 app = FastAPI()
 
-files = [
-    ("rick and morty 1", "content-1"),
-    ("rick and morty 2", "content-2"),
-    ("rick and morty 3", "content-3")]
-test_data = [
-    (slugify(file_name), file_name, file_content) for
-    file_name,
-    file_content in files]
+
+def read_srt(path):
+    content = ""
+    with open(os.path.join('data', path), 'r') as f:
+        for i in range(12):
+            content += f.readline()
+    return content
 
 
 @app.get("/files")
 def read_files(language: Optional[str] = "en", page: Optional[int] = None):
+    directory_srt_list = listdir('data')
     return [
         {
-            "id": id_name, "name": file_name, "content": file_content} for
-            id_name,
-            file_name,
-            file_content in test_data
+            "id": file_name_index,
+            "name": directory_srt_list[file_name_index],
+            "content": read_srt(directory_srt_list[file_name_index])} for
+            file_name_index in range(len(directory_srt_list))
     ]
 
 
 @app.get("/files/{file_id}")
-def read_file_by_id(file_id: str):
-    for i in test_data:
-        if i[0] == file_id:
-            return{
-                 "id": i[0], "name": i[1], "content": i[2]
-            }
+def read_file_by_id(file_id: int):
+    directory_srt_list = listdir('data')
+    content = ""
+    try:
+        with open(os.path.join('data', directory_srt_list[file_id]), 'r') as f:
+            for i in f.read():
+                content += i
+        return{
+            "id": file_id,
+            "name": directory_srt_list[file_id],
+            "content": content
+        }
+    except Exception:
         return None
 
 
 @app.post("/files/{file_id}")
-def add__record():
+def add_record():
     pass
-
-
-    
-
-
-

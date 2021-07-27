@@ -1,7 +1,7 @@
 from typing import Optional
 from os import listdir
 import os.path
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from schemas import Translate
 from slugify import slugify
 
@@ -20,12 +20,14 @@ def read_srt(path):
 @app.get("/api/v1/files")
 def read_files(language: Optional[str] = "en", page: Optional[int] = None):
     directory_srt_list = listdir('data')
+    if len(directory_srt_list) < 1:
+        raise HTTPException(status_code=404, detail="Items not found")
     return [
         {
-            "id": slugify(directory_srt_list[file_name_index]),
-            "name": directory_srt_list[file_name_index],
-            "content": read_srt(directory_srt_list[file_name_index])} for
-            file_name_index in range(len(directory_srt_list))
+            "id": slugify(file_name),
+            "name": file_name,
+            "content": read_srt(file_name)} for
+            file_name in directory_srt_list
     ]
 
 
@@ -43,13 +45,14 @@ def read_file_by_id(file_id: str):
                 "name": file["name"],
                 "content": content
             }
-    return None
+    raise HTTPException(status_code=404, detail="Item not found")
 
 
 @app.post("/api/v1/files/{file_id}")
 def add_record(file_id: str, item: Translate):
     files_list = read_files()
     path_to_file = ""
+    lines = None
     for file in files_list:
         if file["id"] == file_id:
             path_to_file = os.path.join('data', file["name"])
@@ -63,6 +66,7 @@ def add_record(file_id: str, item: Translate):
                 if lines[i+2] != "":
                     lines[i+2] = ""
                 break
-        with open(os.path.join('data', file["name"]), "w", encoding="utf-8") as f:
+        with open(path_to_file, "w", encoding="utf-8") as f:
             f.writelines("%s\n" % line for line in lines)
-    return item
+        return item
+    else: raise HTTPException(status_code=404, detail="Item not found")

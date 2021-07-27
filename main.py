@@ -3,6 +3,8 @@ from os import listdir
 import os.path
 from fastapi import FastAPI
 from schemas import Translate
+from slugify import slugify
+
 
 app = FastAPI()
 
@@ -15,40 +17,52 @@ def read_srt(path):
     return content
 
 
-@app.get("/files")
+@app.get("/api/v1/files")
 def read_files(language: Optional[str] = "en", page: Optional[int] = None):
     directory_srt_list = listdir('data')
     return [
         {
-            "id": file_name_index,
+            "id": slugify(directory_srt_list[file_name_index]),
             "name": directory_srt_list[file_name_index],
             "content": read_srt(directory_srt_list[file_name_index])} for
             file_name_index in range(len(directory_srt_list))
     ]
 
 
-@app.get("/files/{file_id}")
-def read_file_by_id(file_id: int):
-    directory_srt_list = listdir('data')
+@app.get("/api/v1/files/{file_id}")
+def read_file_by_id(file_id: str):
+    files_list = read_files()
     content = ""
-    try:
-        with open(os.path.join('data', directory_srt_list[file_id]), 'r', encoding="utf-8") as f:
-            for i in f.read():
-                content += i
-        return{
-            "id": file_id,
-            "name": directory_srt_list[file_id],
-            "content": content
-        }
-    except Exception:
-        return None
+    for file in files_list:
+        if file["id"] == file_id:
+            with open(os.path.join('data', file["name"]), 'r', encoding="utf-8") as f:
+                for i in f.read():
+                    content += i
+            return{
+                "id": file_id,
+                "name": file["name"],
+                "content": content
+            }
+    return None
 
 
-@app.post("/files/{file_id}")
-def add_record(file_id: int, item: Translate):
-    directory_srt_list = listdir('data')
-    with open(os.path.join('data',"Russian-" + directory_srt_list[file_id]), 'a', encoding="utf-8") as f:
-            f.write(str(item.record_id) + "\n")
-            f.write(item.record_timeframe + "\n")
-            f.write(item.record + "\n")
+@app.post("/api/v1/files/{file_id}")
+def add_record(file_id: str, item: Translate):
+    files_list = read_files()
+    path_to_file = ""
+    for file in files_list:
+        if file["id"] == file_id:
+            path_to_file = os.path.join('data', file["name"])
+            with open(path_to_file, 'r', encoding="utf-8") as f:
+                lines = f.read().splitlines()
+            break
+    if lines:
+        for i in range(len(lines)):
+            if lines[i] == item.record_timeframe:
+                lines[i+1] = item.record
+                if lines[i+2] != "":
+                    lines[i+2] = ""
+                break
+        with open(os.path.join('data', file["name"]), "w", encoding="utf-8") as f:
+            f.writelines("%s\n" % line for line in lines)
     return item

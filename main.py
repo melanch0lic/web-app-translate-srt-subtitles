@@ -1,13 +1,15 @@
 from typing import Optional
 from os import listdir
 import os.path
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 from schemas import Translate
 from slugify import slugify
 
 
 app = FastAPI()
-
+templates = Jinja2Templates(directory="templates")
 
 def read_srt(path):
     content = ""
@@ -15,6 +17,11 @@ def read_srt(path):
         for i in range(12):
             content += f.readline()
     return content
+
+
+@app.get('/', response_class=HTMLResponse)
+def index(request: Request):
+    return templates.TemplateResponse('index.html', {"request": request, "id": id})
 
 
 @app.get("/api/v1/files")
@@ -43,7 +50,7 @@ def read_file_by_id(file_id: str):
             return{
                 "id": file_id,
                 "name": file["name"],
-                "content": content
+                "content": content.split("\n")
             }
     raise HTTPException(status_code=404, detail="Item not found")
 

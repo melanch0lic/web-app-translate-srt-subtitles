@@ -50,7 +50,7 @@
                     return '<tr>'
                         + '<td>' + fileRowItem.id + '</td>'
                         + '<td>' + fileRowItem.text + '</td>'
-                        + '<td id="td-translate">' + fileRowItem.translation + '</td>'
+                        + '<td id="td-translate-' + fileRowItem.id +'" '+'value="'+fileRowItem.id+'"'+'>' + fileRowItem.translation + '</td>'
                     '</tr>';
                 }
             };
@@ -59,6 +59,8 @@
                 var editorHTML = '<textarea id="' + editorId + '"></textarea>';
                 var $editor = $(editorHTML);
                 var $currentTargetElement = null;
+                var currentId = null;
+                var previousRecord = null;
 
                 function preventDefaultEvents(e) {
                     e.preventDefault();
@@ -118,139 +120,173 @@
                         editorClass: ''
                     }
 
-                    var opts = $.extend(defaultOptions, options);
-                    $editor.addClass(opts.editorClass);
+                var opts = $.extend(defaultOptions, options);
+                $editor.addClass(opts.editorClass);
 
-                    return this.each(function (idx, element) {
-                        $(element).dblclick(function (e) {
-                            preventDefaultEvents(e);
-                            var target = e.target;
-                            var $body = $(document.body);
+                return this.each(function (idx, element) {
+                    $(element).dblclick(function (e) {
+                        preventDefaultEvents(e);
+                        var target = e.target;
+                        var $body = $(document.body);
 
-                            if (target === $editor[0] || target === document.body || !$body.has(target)) return;
+                        if (target === $editor[0] || target === document.body || !$body.has(target)) return;
 
-                            var $element = $(target);
+                        var $element = $(target);
 
-                            if (!$editor.parent().length) {
-                                $body.append($editor);
-                            }
+                        if (!$editor.parent().length) {
+                            $body.append($editor);
+                        }
 
-                            setEditorStyle($element, opts);
-                            setEditorState($element);
-                            //$(document).on('click', closeDomEditor);
-                            $currentTargetElement = $element;
-                        });
+                        setEditorStyle($element, opts);
+                        setEditorState($element);
+                        //$(document).on('click', closeDomEditor);
+                        $currentTargetElement = $element;
+                        currentId = this.getAttribute("value")
+                        previousRecord = $(this).html()
+                        console.log(currentId)
+                    $( "textarea" ).keypress(function( event ) {
+                        if ( event.which == 13 ) {
+                            var record = this.value;
+                            event.preventDefault();
+                            $.ajax({
+                                url: "api/v2/files/get_slugify_id/"+document.getElementById("id-target-files").value,  
+                                dataType: 'json',
+                                context: document.body
+                            }).done(function(data) {
+                                fetch("api/v2/files/"+data.id, {
+                                method: 'post',
+                                body: JSON.stringify({record_id: currentId, record: record}),
+                                headers: {
+                                    'content-type': 'application/json'
+                                }
+                                })
+                                closeDomEditor()
+                            });
+                        }
                     });
-                }
-            })(jQuery);
+                    $("textarea").keyup(function(e) {
+                        if (e.key === "Escape") { // escape key maps to keycode `27`
+                            closeDomEditor()
+                            document.getElementById('td-translate-' + currentId).innerHTML = String(previousRecord);
+                        }
+                    });                 
+                });
+            });
+        }
+    })(jQuery);
         </script>
         <script>
-            
-            function slugify(string){
-                return string.toLowerCase()
-                    .normalize('NFD')
-                    .replace(/[\u0300-\u036f]/g, '')
-                    .split('')
-                    .map(character => (/[a-z0-9]/.test(character) ? character : '-'))
-                    .join('')
-                    .replace(/-+/g,'-')
-                    .replace(/^-|$/g,'')
-            }
             $(function() {
                 // Document loaded.
 
                 // Handlers
 
                 // Cache for source file records.
-                var sourceFileRecords = [];
-
+                var sourceFileRecords = []
                 $( "#id-source-files" ).change(function() {
-                    // FIXME: Send request to correct endpoint and parse response.
                     $.ajax({
-                        url: "http://127.0.0.1:8000/api/v1/files/"+slugify(this.value),  // FIXME: use correct endpoint.
+                        url: "api/v2/files/get_slugify_id/"+this.value,  
                         dataType: 'json',
                         context: document.body
                     }).done(function(data) {
-                        // FIXME: Use correct data
-                        console.log(data.content)
-                        var debugData = [
+                        currentSourceFile = data.id;
+                        $.ajax({
+                            url: "api/v2/files/"+data.id,  
+                            dataType: 'json',
+                            context: document.body
+                        }).done(function(data) {
+                            // FIXME: Use correct data
+                            console.log(data.content)
+                            var debugData = [
                             
-                        ];
-                        for (var i = 3; i < data.content.length; i = i + 4) {
-                            if (data.content[i]===""){
-                                debugData.push({id: data.content[i-3], text: data.content[i-1]})
-                            }
+                            ];
+                            for (var i = 3; i < data.content.length; i = i + 4) {
+                                if (data.content[i]===""){
+                                    debugData.push({id: data.content[i-3], text: data.content[i-1]})
+                                }
                             else{
-                                debugData.push({id: data.content[i-3], text: data.content[i-1] + " " +data.content[i]})
-                                i++
+                                    debugData.push({id: data.content[i-3], text: data.content[i-1] + " " +data.content[i]})
+                                    i++
+                                }
                             }
-                        }
-                        var fileRows = debugData.map(window.Templates.renderFileRow);
-                        console.log(fileRows);
-                        $("#id-translation-table tbody").empty();
-                        $("#id-translation-table tbody").append(fileRows);
-                        sourceFileRecords = debugData;
+                            var fileRows = debugData.map(window.Templates.renderFileRow);
+                            console.log(fileRows);
+                            $("#id-translation-table tbody").empty();
+                            $("#id-translation-table tbody").append(fileRows);
+                            sourceFileRecords = debugData;
+                        });
                     });
                 });
 
-                $( "#id-target-files" ).change(function() {
-                    // FIXME: Send request to correct endpoint and parse response.
+                $("#id-target-files").change(function() {
                     $.ajax({
-                        url: "http://127.0.0.1:8000/api/v1/files/"+slugify(this.value),  // FIXME: use correct endpoint.
+                        url: "api/v2/files/get_slugify_id/" + this.value, 
                         dataType: 'json',
                         context: document.body
                     }).done(function(data) {
-                        // FIXME: Use correct data
-                        var debugData = [
-                            
-                        ];
-                        for (var i = 3; i < data.content.length; i = i + 4) {
-                            if (data.content[i]===""){
-                                debugData.push({id: data.content[i-3], text: data.content[i-1]})
+                        currentTargetFile = data.id;
+                        $.ajax({
+                            url: "api/v2/files/" + data.id, 
+                            dataType: 'json',
+                            context: document.body
+                        }).done(function(data) {
+                            // FIXME: Use correct data
+                            var debugData = [
+
+                            ];
+                            for (var i = 3; i < data.content.length; i = i + 4) {
+                                if (data.content[i] === "") {
+                                    debugData.push({
+                                        id: data.content[i - 3],
+                                        text: data.content[i - 1]
+                                    })
+                                } else {
+                                    debugData.push({
+                                        id: data.content[i - 3],
+                                        text: data.content[i - 1] + '\n' + data.content[i]
+                                    })
+                                    i++
+                                }
                             }
-                            else{
-                                debugData.push({id: data.content[i-3], text: data.content[i-1] + " " +data.content[i]})
-                                i++
+                            // join source and target records.
+                            var joinedRecords = [];
+                            var translation = '';
+                            for (var i = 0; i < sourceFileRecords.length; ++i) {
+                                if (i < debugData.length) {
+                                    translation = debugData[i].text;
+                                } else {
+                                    translation = ''
+                                }
+                                joinedRecords.push({
+                                    id: sourceFileRecords[i].id,
+                                    text: sourceFileRecords[i].text,
+                                    translation: translation
+                                })
                             }
-                        }
-                        // join source and target records.
-                        var joinedRecords = [];
-                        var translation = '';
-                        for (var i = 0; i < sourceFileRecords.length; ++i) {
-                            if (i < debugData.length) {
-                                translation = debugData[i].text;
-                            } else {
-                                translation = ''
-                            }
-                            joinedRecords.push({
-                                id: sourceFileRecords[i].id,
-                                text: sourceFileRecords[i].text,
-                                translation: translation
-                            })
-                        }
-                        var fileRows = joinedRecords.map(window.Templates.renderFileRow);
-                        console.log(fileRows);
-                        $("#id-translation-table tbody").empty();
-                        $("#id-translation-table tbody").append(fileRows);
-                        $(document).ready(function(){
-                        $('td:nth-child(3)').domEdit({
-                            editorClass: 'editor',
-                            onSetEditorStyle: function($editor, $editingElement) {
-                                $editor.css('border-style', 'dotted');
-                                $editor.css('border-width', '1px');  
-                                $editor.css('outline', 'none');
-                            }
+                            var fileRows = joinedRecords.map(window.Templates.renderFileRow);
+                            console.log(fileRows);
+                            $("#id-translation-table tbody").empty();
+                            $("#id-translation-table tbody").append(fileRows);
+
+                            $(document).ready(function() {
+                                $('td:nth-child(3)').domEdit({
+                                    editorClass: 'editor',
+                                    onSetEditorStyle: function($editor, $editingElement) {
+                                        $editor.css('border-style', 'dotted');
+                                        $editor.css('border-width', '1px');
+                                        $editor.css('outline', 'none');
+                                    }
+                                });
+                            });
                         });
-                    });
                     });
                 });
 
                 // end of handlers.
 
                 // Fetch and display files.
-                // FIXME: Should take file list from API.
                 $.ajax({
-                    url: "http://127.0.0.1:8000/api/v1/files",
+                    url: "api/v2/files",
                     context: document.body,
                     dataType: 'json',
                 }).done(function(data) {

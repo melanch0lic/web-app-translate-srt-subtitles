@@ -24,7 +24,12 @@ def index(request: Request):
     return templates.TemplateResponse('index.html', {"request": request, "id": id})
 
 
-@app.get("/api/v1/files")
+@app.get("/api/v2/files/get_slugify_id/{file_name}")
+def get_slugify(file_name: str):
+    return {"id" : slugify(file_name)}
+
+
+@app.get("/api/v2/files")
 def read_files(language: Optional[str] = "en", page: Optional[int] = None):
     directory_srt_list = listdir('data')
     if len(directory_srt_list) < 1:
@@ -38,7 +43,7 @@ def read_files(language: Optional[str] = "en", page: Optional[int] = None):
     ]
 
 
-@app.get("/api/v1/files/{file_id}")
+@app.get("/api/v2/files/{file_id}")
 def read_file_by_id(file_id: str):
     files_list = read_files()
     content = ""
@@ -55,7 +60,7 @@ def read_file_by_id(file_id: str):
     raise HTTPException(status_code=404, detail="Item not found")
 
 
-@app.post("/api/v1/files/{file_id}")
+@app.post("/api/v2/files/{file_id}")
 def add_record(file_id: str, item: Translate):
     files_list = read_files()
     path_to_file = ""
@@ -68,10 +73,10 @@ def add_record(file_id: str, item: Translate):
             break
     if lines:
         for i in range(len(lines)):
-            if lines[i] == item.record_timeframe:
-                lines[i+1] = item.record
-                if lines[i+2] != "":
-                    lines[i+2] = ""
+            if lines[i] == item.record_id:
+                lines[i+2] = item.record
+                if lines[i+3] != "":
+                    lines.pop(i+3)
                 break
         with open(path_to_file, "w", encoding="utf-8") as f:
             f.writelines("%s\n" % line for line in lines)
